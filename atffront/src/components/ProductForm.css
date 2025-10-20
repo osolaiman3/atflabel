@@ -1,0 +1,57 @@
+/* ProductForm.module.css */
+
+.formContainer {
+    padding: 20px;
+    max-width: 500px;
+    margin: 0 auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.feedbackMessage {
+    font-weight: bold;
+}
+
+.error {
+    color: red;
+}
+
+.success {
+    color: green;
+}
+
+.formGrid {
+    display: grid;
+    gap: 15px;
+}
+
+.label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.inputGroup {
+    display: flex;
+    gap: 10px;
+}
+
+.input,
+.select {
+    padding: 8px;
+    border: 1px solid #ccc;
+    width: 100%; /* Default for single inputs */
+}
+
+.inputFlexGrow {
+    flex-grow: 1;
+}
+
+.submitButton {
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
