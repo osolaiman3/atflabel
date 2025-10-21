@@ -1,6 +1,21 @@
-# ATF label scanner
+# TTB label scanner
 
 Single server website utilizing a REST endpoint to interface with the OCR and do text comparisons from extracted text
+
+## Startup
+- install requirements.txt in atfbback
+- local/dev
+    - run front end inside atffront (npm start)
+    - run server in atfback (use run_wsgi.sh or gunicorn wsgi:app)
+    - The front end proxy should interact with the back end
+- quick deployment in onrender
+    - run run_wsgi.sh inside atfback
+        - npm build already compiled due to issues with onrender 
+- deployment (multistep)
+    - build front end 
+        - inside atffront: (npm run build)
+    - run server in atfback (use run_wsgi.sh or gunicorn wsgi:app)
+
 
 ## Use
 - Fill out form with respective data
@@ -32,14 +47,21 @@ Single server website utilizing a REST endpoint to interface with the OCR and do
     - Many found require breaking the limitations 
 
 ###  OCR Capabilities
-- Chose a combination of tesseract and CRAFT text detector. This was in contrast with using better 3rd party APIs. Goal is to detect multiple text orientations, keep track of their location and check for text validation.
+Chose easy OCR. Wrote OCR module to be able to use multiple alternatives in the future. Choice was in contrast with using better 3rd party APIs. Goal is to detect multiple text orientations, keep track of their location and check for text validation.
 
+- Utilized R Tree to be able to search found text boxes near a found word/set of words
+
+- Did text post processing via lowercase, fuzzy text matching by 'word' in the string
+
+For using easyocr
 - Drawbacks
     - slower processing times
     - May miss things better resources like google vision may have
 - Pros
     - 3rd party APIs cannot be abused and keys cannot be taken if they are not in use
     - cost of running the models is less than utilizing third parties 
+
+Application may have some accuracy issues, but plugging in better models/approaches should be easy to build on. 
 
 ### Security
 - Form sanitization 
@@ -53,10 +75,14 @@ Single server website utilizing a REST endpoint to interface with the OCR and do
 
 ### UI/capabilities
 #### Label location highlighting 
-Base OCR 
+Base OCR Just performs text checks. Image scanning does allow for locations to be found for annotations. Formatting of service allows for this to be built on top of current code. 
 
 #### multiple images
-Many labels aren't in one piece, they come in multiple pieces. This should allow for applicants to submit labels as they have them designed instead of having to also compile them into a single image for upload
+Many labels aren't in one piece, they come in multiple pieces. This should allow for applicants to submit labels as they have them designed instead of having to also compile them into a single image for upload. The current methodology for front and back end supports multiple images coming in, but time for processing may be somewhat excessive given images are scanned with preprocessing.
+Front and back end are locked down for this MVP to provide for one image right now. 
+
+#### Proper Logging
+Logging is good for services, I just didn't want to set up something putting text onto a filesystem. Minimal filesystem. 
 
 
 ### Database of submitted forms to look up against

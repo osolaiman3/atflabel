@@ -11,6 +11,11 @@ const ResultsModal = ({ data, onClose, images }) => {
         setCurrentImageIndex((prevIndex) => (prevIndex - 1 + images.length) % images.length);
     };
 
+    // Helper function to get validation status from the data structure
+    const getValidationStatus = (key) => {
+        return data?.validations?.[key] || false;
+    };
+
     return (
         // Modal Overlay
         <div className="fixed inset-0 z-50 bg-black bg-opacity-70 flex items-center justify-center p-4" onClick={onClose}>
@@ -62,23 +67,33 @@ const ResultsModal = ({ data, onClose, images }) => {
                 <div className="space-y-2 text-gray-200">
                     <div className="flex justify-between">
                         <span className="font-semibold">Brand Name:</span>
-                        <span className={data.brandName.isValid ? "text-green-400" : "text-red-400"}>{data.brandName.value}</span>
+                        <span className={getValidationStatus('brand_name') ? "text-green-400" : "text-red-400"}>
+                            {getValidationStatus('brand_name') ? '✓ Found' : '✗ Not Found'}
+                        </span>
                     </div>
                     <div className="flex justify-between">
                         <span className="font-semibold">Product Class:</span>
-                        <span className={data.productClass.isValid ? "text-green-400" : "text-red-400"}>{data.productClass.value}</span>
+                        <span className={getValidationStatus('product_class') ? "text-green-400" : "text-red-400"}>
+                            {getValidationStatus('product_class') ? '✓ Found' : '✗ Not Found'}
+                        </span>
                     </div>
                     <div className="flex justify-between">
                         <span className="font-semibold">Alcohol Content:</span>
-                        <span className={data.alcoholContent.isValid ? "text-green-400" : "text-red-400"}>{data.alcoholContent.value} %</span>
+                        <span className={getValidationStatus('alcohol_content') ? "text-green-400" : "text-red-400"}>
+                            {getValidationStatus('alcohol_content') ? '✓ Found' : '✗ Not Found'}
+                        </span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="font-semibold">Net Contents (must be &gt; 0):</span>
-                        <span className={data.netContents.isValid ? "text-green-400" : "text-red-400"}>{data.netContents.value} {data.netContentsUnit.value}</span>
+                        <span className="font-semibold">Net Contents:</span>
+                        <span className={getValidationStatus('net_contents') ? "text-green-400" : "text-red-400"}>
+                            {getValidationStatus('net_contents') ? '✓ Found' : '✗ Not Found'}
+                        </span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="font-semibold">Government Warning Present:</span>
-                        <span className={data.govWarningPresent?.isValid ? "text-green-400" : "text-red-400"}>{data.govWarningPresent?.value ? "True" : "False"}</span>
+                        <span className="font-semibold">Government Warning:</span>
+                        <span className={getValidationStatus('gov_warn') ? "text-green-400" : "text-red-400"}>
+                            {getValidationStatus('gov_warn') ? '✓ Found' : '✗ Not Found'}
+                        </span>
                     </div>
                     {/* Image count display */}
                     {images.length > 0 && (

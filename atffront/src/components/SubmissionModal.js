@@ -1,73 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 const SubmissionModal = ({ data, onClose, images, onConfirm, token }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submissionError, setSubmissionError] = useState('');
-    const [elapsedTime, setElapsedTime] = useState(0);
-    const [jobId, setJobId] = useState(null);
-    const PROCESSING_TIMEOUT = 65; // Slightly longer than server timeout
-
-    // Poll processing status
-    useEffect(() => {
-        if (!jobId) return;
-
-        const pollInterval = setInterval(async () => {
-            try {
-                const response = await fetch(`/processing-status/${jobId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    }
-                });
-
-                const status = await response.json();
-
-                // Update elapsed time
-                setElapsedTime(Math.round(status.elapsed_seconds || 0));
-
-                // Check for timeout
-                if (status.elapsed_seconds > PROCESSING_TIMEOUT) {
-                    setSubmissionError('Processing timeout - server did not respond in time');
-                    setIsSubmitting(false);
-                    setJobId(null);
-                    clearInterval(pollInterval);
-                    return;
-                }
-
-                // Processing complete
-                if (status.status === 'completed') {
-                    if (onConfirm) {
-                        onConfirm(status.result);
-                    }
-                    setIsSubmitting(false);
-                    setJobId(null);
-                    clearInterval(pollInterval);
-                    return;
-                }
-
-                // Processing failed
-                if (status.status === 'failed') {
-                    setSubmissionError(status.error || 'Processing failed on server');
-                    setIsSubmitting(false);
-                    setJobId(null);
-                    clearInterval(pollInterval);
-                    return;
-                }
-            } catch (error) {
-                setSubmissionError('Error checking processing status: ' + error.message);
-                setIsSubmitting(false);
-                setJobId(null);
-                clearInterval(pollInterval);
-            }
-        }, 1000); // Poll every 1 second
-
-        return () => clearInterval(pollInterval);
-    }, [jobId, token, onConfirm]);
 
     const handleConfirm = async () => {
         setIsSubmitting(true);
         setSubmissionError('');
-        setElapsedTime(0);
 
         try {
             // Create FormData for multipart/form-data submission
@@ -85,7 +24,7 @@ const SubmissionModal = ({ data, onClose, images, onConfirm, token }) => {
                 formData.append('images', image);
             });
 
-            // Send to backend (returns job_id immediately)
+            // Send to backend
             const response = await fetch('/submit-product', {
                 method: 'POST',
                 headers: {
@@ -102,9 +41,10 @@ const SubmissionModal = ({ data, onClose, images, onConfirm, token }) => {
                 return;
             }
 
-            // Store job ID to poll for status
-            setJobId(result.job_id);
-            // isSubmitting remains true while polling
+            // Call onConfirm callback if provided (e.g., to show ResultsModal)
+            if (onConfirm) {
+                onConfirm(result);
+            }
         } catch (error) {
             setSubmissionError('Network error: ' + error.message);
             setIsSubmitting(false);
@@ -112,9 +52,7 @@ const SubmissionModal = ({ data, onClose, images, onConfirm, token }) => {
     };
 
     const handleEditAgain = () => {
-        if (isSubmitting) return; // Don't allow editing while processing
         setSubmissionError('');
-        setJobId(null);
         onClose();
     };
 
@@ -125,7 +63,7 @@ const SubmissionModal = ({ data, onClose, images, onConfirm, token }) => {
             <div className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-100" onClick={e => e.stopPropagation()}>
                 
                 <h3 className="text-3xl font-extrabold text-amber-500 border-b border-amber-500/50 pb-3 mb-4 text-center">
-                    {isSubmitting && jobId ? 'Processing Submission' : 'Confirm Submission'}
+                    {isSubmitting ? 'Processing Submission' : 'Confirm Submission'}
                 </h3>
                 
                 {!isSubmitting ? (
@@ -196,12 +134,6 @@ const SubmissionModal = ({ data, onClose, images, onConfirm, token }) => {
                             {/* Spinner */}
                             <div className="flex justify-center">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
-                            </div>
-
-                            {/* Processing info */}
-                            <div className="text-center">
-                                <p className="text-gray-400 text-sm mb-2">Elapsed: <span className="text-amber-300 font-semibold">{elapsedTime}s</span></p>
-                                <p className="text-gray-500 text-xs">Processing timeout: {PROCESSING_TIMEOUT}s</p>
                             </div>
 
                             {/* Error message if processing fails */}

@@ -8,8 +8,8 @@ const ImageUploader = ({ onImagesChange, hasError }) => {
     const [imageError, setImageError] = useState('');
 
     // Limits
-    const MAX_IMAGES = 5;
-    const MAX_SIZE_MB = 5;
+    const MAX_IMAGES = process.env.MAX_IMAGES || 1;
+    const MAX_SIZE_MB = process.env.MAX_IMAGE_SIZE_MB || 5;
     const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024; // 5MB in bytes
 
     const handleFiles = useCallback((files) => {
@@ -44,7 +44,7 @@ const ImageUploader = ({ onImagesChange, hasError }) => {
         if (oversizedFiles.length > 0) {
             setImageError(`Error: ${oversizedFiles.length} file(s) exceed the ${MAX_SIZE_MB}MB limit.`);
         } else if (filesArray.length > 0 && newImages.length === uploadedImages.length) {
-             setImageError(`Error: Maximum of ${MAX_IMAGES} images reached.`);
+            setImageError(`Error: Maximum of ${MAX_IMAGES} images reached.`);
         }
 
     }, [uploadedImages, onImagesChange]);

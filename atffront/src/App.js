@@ -3,6 +3,7 @@ import './App.css';
 import ProductForm from './components/ProductForm';
 import AuthModal from './components/AuthModal';
 import React, {useState, useEffect, useCallback} from 'react';
+import { API_ENDPOINTS, AUTH_CONFIG } from './config';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -11,7 +12,7 @@ function App() {
 
   // Effect to load token from localStorage on initial mount
   useEffect(() => {
-    const cachedToken = localStorage.getItem('token');
+    const cachedToken = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
     if (cachedToken) {
       setToken(cachedToken);
     } else {
@@ -43,7 +44,7 @@ function App() {
       } else {
         console.error('Token validation failed:', data.message || response.statusText);
         setIsAuthenticated(false);
-        localStorage.removeItem('token'); // Remove invalid token
+        localStorage.removeItem(AUTH_CONFIG.TOKEN_KEY); // Remove invalid token
       }
     } catch (error) {
       console.error('Error verifying token:', error);
@@ -74,7 +75,7 @@ function App() {
     <div className="App">
       <header className="App-header">
         <div className="flex items-center flex-direction row justify-center space-x-4">
-          <p className="text-5xl text-amber-200 font-bold">ATF</p>
+          <p className="text-5xl text-amber-200 font-bold">TTB</p>
           <div>
             <div>
               <img src={bottle} className="App-bottle" alt="bottle" />
@@ -89,7 +90,7 @@ function App() {
       <main>
         
           <h2 className="text-2xl font-semibold mb-4 text-center text-white">
-            Alcoholic Beverage Product Registration
+            Alcoholic Beverage Product Verification
           </h2>
           {isLoadingAuth ? (
             <p className="text-2xl font-semibold text-white">Loading authentication...</p>

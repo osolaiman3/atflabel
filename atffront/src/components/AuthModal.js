@@ -7,7 +7,7 @@ const AuthModal = ({ onAuthSuccess }) => {
     const [authFeedback, setAuthFeedback] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const API_BASE = process.env.REACT_APP_AUTH_BASE_URL || 'http://localhost:5000';
+    const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:10000';
     const LOGIN_ENDPOINT = `${API_BASE}/login`;
 
     const handleAuthSubmit = async (e) => {
@@ -80,7 +80,7 @@ const AuthModal = ({ onAuthSuccess }) => {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             className={inputClass}
-                            placeholder="username" // Updated placeholder
+                            placeholder="username"
                             disabled={isLoading}
                         />
                     </div>
@@ -105,8 +105,6 @@ const AuthModal = ({ onAuthSuccess }) => {
                         {isLoading ? 'Processing...' : 'Login'}
                     </button>
                 </form>
-
-                {/* Sign Up toggle paragraph removed */}
             </div>
         </div>
     );

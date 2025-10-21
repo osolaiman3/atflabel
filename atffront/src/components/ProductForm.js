@@ -28,6 +28,8 @@ const ProductForm = ({ token }) => {
     // State for Results Modal
     const [resultsData, setResultsData] = useState(null);
     const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
+    // State for images returned from server
+    const [resultImages, setResultImages] = useState([]);
 
     // Helper function to get error classes
     const getInputClass = (fieldName) => {
@@ -138,7 +140,7 @@ const ProductForm = ({ token }) => {
 
         // Success: store data, reset validation, and open modal
         setSubmissionData(dataToSubmit);
-        setIsModalOpen(true);
+        setIsSubmitModalOpen(true);
         setFeedback('Success! Product data submitted.');
     };
 
@@ -148,7 +150,21 @@ const ProductForm = ({ token }) => {
     };
 
     const handleSubmissionConfirm = (result) => {
-        setResultsData(result);
+        // Map server validation response to ResultsModal format
+        // Server returns: { success, validations: {brand_name, product_class, alcohol_content, net_contents, gov_warn}, user, images: [...] }
+        
+        const mappedData = {
+            validations: {
+                brand_name: result.validations?.brand_name || false,
+                product_class: result.validations?.product_class || false,
+                alcohol_content: result.validations?.alcohol_content || false,
+                net_contents: result.validations?.net_contents || false,
+                gov_warn: result.validations?.gov_warn || false
+            }
+        };
+        
+        setResultsData(mappedData);
+        setResultImages(result.images || []);  // Store images from server
         setIsResultsModalOpen(true);
         setIsSubmitModalOpen(false);
     };
@@ -156,6 +172,7 @@ const ProductForm = ({ token }) => {
     const closeResultsModal = () => {
         setIsResultsModalOpen(false);
         setResultsData(null);
+        setResultImages([]);
         // Don't clear the form - keep it for potential edits or reference
     };
 
@@ -304,9 +321,9 @@ const ProductForm = ({ token }) => {
             {/* Results Modal - Rendered after successful submission */}
             {isResultsModalOpen && resultsData && (
                 <ResultsModal
-                    data={resultsData.validations}
+                    data={resultsData}
                     onClose={closeResultsModal}
-                    images={uploadedFiles}
+                    images={resultImages}
                 />
             )}
         </div>

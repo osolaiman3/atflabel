@@ -22,7 +22,7 @@ const config = {
     const webpack = require('webpack');
     config.plugins.push(
       new webpack.DefinePlugin({
-        'process.env.REACT_APP_AUTH_BASE_URL': JSON.stringify(process.env.REACT_APP_AUTH_BASE_URL || 'http://localhost:5000'),
+        'process.env.REACT_APP_API_URL': JSON.stringify(process.env.REACT_APP_API_URL || 'http://localhost:10000'),
       })
     );
     return config;
