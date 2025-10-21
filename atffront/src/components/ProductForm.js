@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import styles from './ProductForm.css'; // Import the CSS Module
 import ImageUploader from './ImageUploader.js';
 import SubmissionModal from './SubmissionModal.js'
+import ResultsModal from './ResultsModal.js'
 
-const ProductForm = ({ }) => {
+const ProductForm = ({ token }) => {
     // Form field state
     const [formData, setFormData] = useState({
         brandName: '',
@@ -16,15 +17,17 @@ const ProductForm = ({ }) => {
     const [feedback, setFeedback] = useState('');
     // State to hold validation errors for coloring inputs (red border)
     const [validationErrors, setValidationErrors] = useState({});
-    // NEW: State for real-time alcohol content hint/warning
+    //State for real-time alcohol content hint/warning
     const [alcoholHint, setAlcoholHint] = useState('');
-    
+
     // State to hold successful submission data for the modal
     const [submissionData, setSubmissionData] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
     // State to hold uploaded files
     const [uploadedFiles, setUploadedFiles] = useState([]);
-
+    // State for Results Modal
+    const [resultsData, setResultsData] = useState(null);
+    const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
 
     // Helper function to get error classes
     const getInputClass = (fieldName) => {
@@ -46,7 +49,7 @@ const ProductForm = ({ }) => {
         const value = e.target.value;
         setFormData(prev => ({ ...prev, alcoholContent: value }));
         setValidationErrors(prev => ({ ...prev, alcoholContent: false }));
-        
+
         const floatValue = parseFloat(value);
         const isEmpty = value.trim() === '';
 
@@ -62,13 +65,11 @@ const ProductForm = ({ }) => {
         const value = e.target.value;
         setValidationErrors(prev => ({ ...prev, netContents: false }));
 
-        // Regex allows empty string or numbers with up to two decimal places
-        if (value === '' || /^\d+(\.\d{0,2})?$/.test(value)) { 
+        if (value === '' || /^\d+(\.\d{0,2})?$/.test(value)) {
             setFormData(prev => ({ ...prev, netContents: value }));
             setFeedback('');
         } else {
-            // General feedback for invalid characters remains here, as it's less common
-            // setFeedback('Net Contents must be a number with up to two decimal places.');
+            setFeedback('Net Contents must be a number with up to two decimal places.');
         }
     };
 
@@ -78,17 +79,14 @@ const ProductForm = ({ }) => {
 
     const handleImagesChange = (files) => {
         setUploadedFiles(files);
-        // Clear image error on successful upload
-        if (files.length > 0) {
-            setValidationErrors(prev => ({ ...prev, images: false }));
-        }
+        // Don't clear image error - let form validation handle it on next submit
     };
 
 
-    // --- Submission Handler ---
+    // Submission Handler
     const handleSubmit = (e) => {
         // Prevent default browser validation/submission
-        e.preventDefault(); 
+        e.preventDefault();
 
         let errors = {};
         let hasError = false;
@@ -108,11 +106,11 @@ const ProductForm = ({ }) => {
         // 3. Validate Alcohol Content (Final check)
         const alcoholStr = formData.alcoholContent.toString().trim();
         const alcohol = parseFloat(alcoholStr);
-        
+
         // Alcohol must be a non-empty string that parses to a valid number in the range [0, 100]
         if (alcoholStr === '' || isNaN(alcohol) || alcohol < 0 || alcohol > 100) {
-             errors.alcoholContent = true;
-             hasError = true;
+            errors.alcoholContent = true;
+            hasError = true;
         }
 
         // 4. Validate required image upload
@@ -137,24 +135,33 @@ const ProductForm = ({ }) => {
         };
 
         console.log('Form Submitted!', dataToSubmit, 'with', uploadedFiles.length, 'images.');
-        
+
         // Success: store data, reset validation, and open modal
         setSubmissionData(dataToSubmit);
         setIsModalOpen(true);
-        setFeedback('Success! Product data submitted.'); 
+        setFeedback('Success! Product data submitted.');
     };
 
     const closeModal = () => {
-        setIsModalOpen(false);
+        setIsSubmitModalOpen(false);
         setSubmissionData(null);
-        setFormData(prev => ({...prev, brandName: '', productClass: '', alcoholContent: 0.0, netContents: 0.00})); // Reset form for new entry
-        setUploadedFiles([]);
-        setValidationErrors({});
+    };
+
+    const handleSubmissionConfirm = (result) => {
+        setResultsData(result);
+        setIsResultsModalOpen(true);
+        setIsSubmitModalOpen(false);
+    };
+
+    const closeResultsModal = () => {
+        setIsResultsModalOpen(false);
+        setResultsData(null);
+        // Don't clear the form - keep it for potential edits or reference
     };
 
     // Tailwind Class Helpers for consistency
     const labelClasses = "block text-sm font-medium text-gray-300 mb-1";
-    const submitButtonClasses = "w-full py-3 bg-amber-500 text-gray-900 font-bold rounded-lg hover:bg-amber-400 transition duration-200 shadow-md"; 
+    const submitButtonClasses = "w-full py-3 bg-amber-500 text-gray-900 font-bold rounded-lg hover:bg-amber-400 transition duration-200 shadow-md";
 
     return (
         // Wrapper for Form and Uploader. Increased max-w to accommodate side-by-side content.
@@ -164,8 +171,8 @@ const ProductForm = ({ }) => {
             {/* Feedback Message (Now only for general submit errors/success) */}
             {feedback && (
                 <p className={`p-3 mb-4 rounded-lg text-sm text-center font-semibold 
-                    ${feedback.startsWith('Error') 
-                        ? 'bg-red-900/50 text-red-300 border border-red-700' 
+                    ${feedback.startsWith('Error')
+                        ? 'bg-red-900/50 text-red-300 border border-red-700'
                         : 'bg-green-900/50 text-green-300 border border-green-700'}`
                 }>
                     {feedback}
@@ -173,13 +180,13 @@ const ProductForm = ({ }) => {
             )}
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6" noValidate>
-                
+
                 {/* === SIDE-BY-SIDE CONTENT for LG screens, STACKED for mobile === */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                    
+
                     {/* 1. Form Fields Section (3/5 width on desktop, full width on mobile) */}
                     <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        
+
                         {/* 1. Brand Name (Full width on small screens, one column on desktop) */}
                         <div className="md:col-span-2">
                             <label htmlFor="brandName" className={labelClasses}>Brand Name</label>
@@ -262,7 +269,7 @@ const ProductForm = ({ }) => {
                                 </select>
                             </div>
                         </div>
-                    </div> 
+                    </div>
                     {/* End of Form Fields Section */}
 
                     {/* 2. Image Uploader Section (2/5 width on desktop, full width on mobile) */}
@@ -284,10 +291,21 @@ const ProductForm = ({ }) => {
             </form>
 
             {/* Submission Modal - Rendered conditionally */}
-            {isModalOpen && submissionData && (
-                <SubmissionModal 
-                    data={submissionData} 
-                    onClose={closeModal} 
+            {isSubmitModalOpen && submissionData && (
+                <SubmissionModal
+                    data={submissionData}
+                    onClose={closeModal}
+                    images={uploadedFiles}
+                    onConfirm={handleSubmissionConfirm}
+                    token={token}
+                />
+            )}
+
+            {/* Results Modal - Rendered after successful submission */}
+            {isResultsModalOpen && resultsData && (
+                <ResultsModal
+                    data={resultsData.validations}
+                    onClose={closeResultsModal}
                     images={uploadedFiles}
                 />
             )}
