@@ -287,7 +287,7 @@ class OCRChecker:
 
     def get_easy_data(self, imagedata: bytes) -> List[Dict[str, Any]]:
         reader = self.reader
-        result = reader.readtext(imagedata, workers=1)
+        result = reader.readtext(imagedata, workers=2, rotation_info=[0,90,270])
         out = {}
         ridx = rtree.index.Index()
         bbid_counter = 0
