@@ -63,6 +63,8 @@ For using easyocr
 
 Application may have some accuracy issues, but plugging in better models/approaches should be easy to build on. 
 
+Ability exists to run Easy OCR with with better checking (multiple image rotations, 'better' scan methodology), but will eat up more RAM in doing so. For MVP project, stuck with greedy. 
+
 ### Security
 - Form sanitization 
 - upload limitations for image (filetypes, file size)
