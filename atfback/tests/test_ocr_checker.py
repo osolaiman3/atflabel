@@ -15,8 +15,8 @@ from pathlib import Path
 @pytest.fixture(scope="module")
 def test_image_data():
     """Load test image once for all tests"""
-    test_image_path = Path(__file__).parent.parent.parent / "examples" / "GreyGoose.jpg"
-    # test_image_path = Path(__file__).parent.parent.parent / "examples" / "2white christmas.png"
+    #test_image_path = Path(__file__).parent.parent.parent / "examples" / "GreyGoose.jpg"
+    test_image_path = Path(__file__).parent.parent.parent / "examples" / "2white christmas.png"
     #test_image_path = Path(__file__).parent.parent.parent / "examples" / "rotright.jpg"
     # test_image_path = Path(__file__).parent.parent.parent / "examples" / "rotleft.jpg"
     
@@ -44,6 +44,7 @@ def processed_image(test_image_data, ocr_checker):
     image_size = cv2.imdecode(np.frombuffer(test_image_data, np.uint8), cv2.IMREAD_COLOR).shape
     if image_size is not None:
         height, width = image_size[:2]
+        print("Image dimensions:", width, height)
 
     return ocrdata, rdix, width, height
 
@@ -83,10 +84,11 @@ class TestBrandName:
     """Tests for check_brand_name method"""
     
     @pytest.mark.parametrize("brand_name,expected", [
-        ("Grey Goose", True),  
+        ("Grey Goose", False),  
         ("Jack Daniels", False), 
-        ("Budweiser", False),     
-        ("", False)
+        ("Budweiser", False),
+        ("Samuel Adams", True), 
+        ("", True)
         ])         
     def test_brand_detection(self, processed_image, ocr_checker, brand_name, expected):
         """Test brand name detection with various inputs"""
@@ -96,6 +98,7 @@ class TestBrandName:
         if found is None:
             pytest.skip("check_brand_name not implemented")
         print(f"Brand name '{brand_name}' found: {found}, boxes: {boxes}")
+        print(ocrdata)
         assert isinstance(found, bool), "Should return boolean"
         assert isinstance(boxes, list), "Should return list of boxes"
 

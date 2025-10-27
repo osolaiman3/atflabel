@@ -6,10 +6,14 @@ import easyocr
 
 import rtree
 from thefuzz import fuzz
-from PIL import Image
 import cv2
 from io import BytesIO
+from PIL import Image
 import numpy as np
+import logging
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 #TODO Configuration file for OCR settings and thresholds
 #TODO: Get bounding boxes for future matches
@@ -68,6 +72,8 @@ class OCRChecker:
         }
         
         imagelen = len(images)
+        oimages = images.copy()
+        
         i = 0
         while i < imagelen and not all(verifications.values()):
             imagedata = images[i]
@@ -87,34 +93,38 @@ class OCRChecker:
             if verifications['gov_warn'] == False:
                 verifications['gov_warn'], boxes['gov_warn'] = self.check_government_warning(ocrdata, rdix, width, height)    
             #TODO: do image rotations for better OCR if not all found
+            
+            #draw boxes on image for visualization/debugging
+            for key, boxlist in boxes.items():
+                logger.debug(f'Drawing boxes for {key}: {boxlist}')
+                for box in boxlist:
+                    cv2.rectangle(image, (box[0], box[1]), (box[2], box[3]), color=(0,255,0), thickness=2)
+            #Convert back to bytes
+            _, buffer = cv2.imencode('.jpg', image)
+            imagedata_with_boxes = buffer.tobytes()
+            oimages[i] = imagedata_with_boxes
 
             i += 1 
         
         #TODO: Draw boxes on the images and return them for visualization
         # for now, just return the original images
         
-        oimages = images
-        
         return verifications, oimages
     
     def process_image (self, imagedata: bytes):
-        """_summary_
+        """Process image with OCR and extract text with bounding boxes.
 
         Args:
-            imagedata (bytes): The image
+            imagedata (bytes): The image data in bytes
 
         Raises:
-            ValueError: _description_
+            ValueError: If unsupported OCR model is specified
             
         Returns:
-            ocrdata (Dict[int, dict[str, Any]]): OCR data with rdix ids as keys
-            rdix (rtree.index.Index): rtree index of bounding boxes
+            tuple: (ocrdata, rdix, width, height)
+                - ocrdata (Dict[int, dict[str, Any]]): OCR data with rdix ids as keys
+                - rdix (rtree.index.Index): rtree index of bounding boxes
         """
-        
-        
-        #get image dimensions
-        
-
         #Holds found text, confidence, bounding box. uses an id
         ocrdata : Dict[int, dict[str, Any]] = {}
         rdix : rtree.index.Index
@@ -138,9 +148,12 @@ class OCRChecker:
             list: list of bounding boxes for the found text
         """
         ocr_texts = [entry['text'].upper() for entry in ocrdata.values()]
-        for text in ocr_texts:
-            if len(text) > 10 and fuzz.partial_ratio("GOVERNMENT WARNING", text.upper()) > 80:
-                return True, []
+        
+        for i in ocrdata.keys():
+            ctext = self.clean_text(ocrdata[i]['text'])
+            cid = ocrdata[i]
+            if len(ctext) > 10 and fuzz.partial_ratio("GOVERNMENT WARNING", ctext.upper()) > 80:
+                return True, [ocrdata[i]['bbox']]
         return False, []
 
     def check_brand_name(self, ocrdata: Dict[int, dict[str, Any]], rdix: rtree.index.Index, width: int, height: int, brand_name: str) -> bool:
@@ -159,8 +172,68 @@ class OCRChecker:
             ctext = self.clean_text(ocrdata[i]['text'])
             cid = ocrdata[i]
             if fuzz.ratio(brand_name.upper(), ctext) > 75 or (len(ctext) > len(brand_name) and fuzz.partial_ratio(brand_name.upper(), ctext) > 85):
-                return True, []
-        ## TODO: check for split text boxes
+                return True, [ocrdata[i]['bbox']]
+            
+        #Chain Textbox finding (searches within padding #s for the label name)
+        brand_tokens = brand_name.split()
+        ctoken = brand_tokens[0].upper()
+        logger.debug(f'Brand tokens: {brand_tokens}')
+        found_cids = []
+        if len(brand_tokens) > 1: 
+            for i in ocrdata.keys():
+                ctext = self.clean_text(ocrdata[i]['text'])
+                if fuzz.ratio(ctoken, ctext) > 75 or (len(ctext) > len(brand_name) and fuzz.partial_ratio(ctoken, ctext) > 85):
+                    #GOT FIRST TOKEN, NOW SEARCH NEARBY AND CHAIN
+                    #get bbox dimensions (minx, miny, maxx, maxy)
+                    #get padding
+                    #search until end of tokens or no match found
+                    logger.debug(f'Found ctext "{ctext}" for first token "{ctoken}" @ bbox {ocrdata[i]["bbox"]}')
+                    cbox = ocrdata[i]['bbox']
+                    found_cids.append(i)
+                    break
+            if len(found_cids) == 0:
+                #could not find first token
+                logger.debug(f'Could not find first token "{ctoken}"')
+                return False, []
+            j = 0
+            while j < len(brand_tokens)-1:
+                newfound = False
+                logger.debug(f'Looking for token: {brand_tokens[j+1]}')
+                #5% of the total image width/height or the size of the box proportionate to the number of characters in it. 
+                charcount = len(brand_tokens[j])
+                #use three character widths to allow for spacing
+                xpad = max(width * 0.05, ((cbox[2] - cbox[0])//charcount)*3)
+                #Use half the height of the box as vertical padding
+                ypad = max(height * 0.05, (cbox[3] - cbox[1])//2)
+                
+                #left and right of item box
+                search_area = (cbox[0], cbox[1], cbox[2] + xpad, cbox[3] + ypad)
+                possible_ids = list(rdix.intersection(search_area))
+                logger.debug(f'Searching for token "{brand_tokens[j+1]}" in area {search_area}')
+                logger.debug(f'Possible IDs for token "{brand_tokens[j+1]}": {possible_ids}')
+                for pid in possible_ids:
+                    ptext = self.clean_text(ocrdata[pid]['text'])
+                    logger.debug(f'Comparing to possible text: "{ptext}"')
+                    if (fuzz.ratio(brand_tokens[j+1].upper(), ptext) > 75 or (len(ptext) > len(brand_tokens[j+1]) and fuzz.partial_ratio(brand_tokens[j+1].upper(), ptext) > 85)) and pid not in found_cids:
+                        #found next token
+                        cbox = ocrdata[pid]['bbox']
+                        found_cids.append(pid)
+                        j += 1
+                        newfound = True
+                        logger.debug(f'Found token "{brand_tokens[j]}" as "{ptext}"')
+                        break
+                if not newfound:
+                    #could not find next token
+                    logger.debug(f'Could not find token "{brand_tokens[j+1]}"')
+                    return False, []
+            logger.debug(f'Found all tokens for brand name "{brand_name}": {found_cids}; j is {j}, len is {len(brand_tokens)}')
+            if j == len(brand_tokens)-1:
+                oboxes = []
+                for cid in found_cids:
+                    logger.debug(f'Box for token: {ocrdata[cid]["text"]} is {ocrdata[cid]["bbox"]}')
+                    oboxes.append(ocrdata[cid]["bbox"])
+                return True, oboxes
+
         return False, []
 
     def check_product_class(self, ocrdata: Dict[int, dict[str, Any]], rdix: rtree.index.Index, width: int, height: int, product_class: str) -> bool:
@@ -181,7 +254,7 @@ class OCRChecker:
             ctext = self.clean_text(ocrdata[i]['text'])
             cid = ocrdata[i]
             if fuzz.ratio(product_class.upper(), ctext) > 75 or (len(ctext) > len(product_class) and fuzz.partial_ratio(product_class.upper(), ctext) > 85):
-                return True, []
+                return True, [ocrdata[i]['bbox']]
         ## TODO: check for split text boxes
         return False, []
 
@@ -218,12 +291,25 @@ class OCRChecker:
             cid = ocrdata[i]
             for abvformat in abvlist:
                 if fuzz.ratio(abvformat, ctext) > 75 or (len(ctext) > len(abvformat) and fuzz.partial_ratio(abvformat, ctext) > 75):
-                    #now that the larger text is 'close enough', verify the alcohol content number is close enough
-                    if fuzz.ratio(alcohol_content.upper(), ctext) > 80 or (len(ctext) > len(alcohol_content) and fuzz.partial_ratio(alcohol_content.upper(), ctext) > 85):
-                        return True, []
-                    return False, []
+                    #extract text and double check on the number
+                    alcohol_number = self.extract_alcohol_number(ctext)
+                    logger.debug(f'Found alcohol content text "{ctext}" matching format "{abvformat}"\n with extracted number "{alcohol_number}" vs input "{alcohol_content}"')
+                    if alcohol_number == alcohol_content:
+                        return True, [ocrdata[i]['bbox']]
         #TODO: find alcohol by volume in split boxes from the number
         return False, []
+    
+    def extract_alcohol_number(self, text: str) -> str:
+        """Extracts the alcohol number from a given text string.
+        Args:
+            text (str): The text string to extract from.
+        Returns:
+            str: The extracted alcohol number as a string, or an empty string if not found.
+        """
+        match = regex.search(r'(\d{1,2}(\.\d{1,2})?)\s*%', text)
+        if match:
+            return match.group(1)
+        return ""
 
     def check_net_contents(self, ocrdata: Dict[int, dict[str, Any]], rdix: rtree.index.Index, width: int, height: int, net_contents: str, net_contents_unit: str) -> bool:
         """Checks for net contents in the text
@@ -247,16 +333,8 @@ class OCRChecker:
             for i in ocrdata.keys():
                 ctext = self.clean_text(ocrdata[i]['text'])
                 cid = ocrdata[i]
-                if fuzz.ratio(fullnet, ctext) > 78 or (len(ctext) > len(fullnet) and fuzz.partial_ratio(fullnet, ctext) > 85):
-                    #if match is found, do a fuzz check on the possible number only. First elements should be the number
-                    #get first token (up to first space
-                    tokens = ctext.split(' ')
-                    if len(tokens) > 0:
-                        numtoken = tokens[0]
-                        if fuzz.ratio(net_contents.upper(), numtoken) > 80):
-                            return True, [cid]
-                    
-                    return True, []
+                if fuzz.ratio(fullnet, ctext) > 75 or (len(ctext) > len(fullnet) and fuzz.partial_ratio(fullnet, ctext) > 85):
+                    return True, [ocrdata[i]['bbox']]
             ##TODO: check for split text and use of L instead of Liters
             return False, []
 
@@ -267,7 +345,7 @@ class OCRChecker:
                 ctext = self.clean_text(ocrdata[i]['text'])
                 cid = ocrdata[i]
                 if fuzz.ratio(fullnet, ctext) > 78:
-                    return True, []
+                    return True, [ocrdata[i]['bbox']]
                 # TODO: Check nearby boxes for split text when dealing with ml and L; more straight forward with fl oz
             return False, []
                 
@@ -279,30 +357,34 @@ class OCRChecker:
                 cid = ocrdata[i]
                 ## direct match, use ratio; for a larger grab use partial ratio
                 if fuzz.ratio(fullnet, ctext) > 78 or (len(ctext) > len(fullnet) and fuzz.partial_ratio(fullnet, ctext) > 85):
-                    return True, []
+                    return True, [ocrdata[i]['bbox']]
             #if no full can be found, check for split
             #TODO: implement split check
             return False, []
-        pass
 
-    def get_easy_data(self, imagedata: bytes) -> List[Dict[str, Any]]:
-        reader = self.reader
-        result = reader.readtext(imagedata, workers=2, rotation_info=[0,90,270])
+        pass
+        
+    @staticmethod
+    def get_easy_data(imagedata: bytes) -> List[Dict[str, Any]]:
+        
+        
+        reader = easyocr.Reader(['en'])
+        result = reader.readtext(imagedata)
         out = {}
         ridx = rtree.index.Index()
         bbid_counter = 0
         text=""
         for (bbox, text, prob) in result:
             verts = [{"x": int(v[0]), "y": int(v[1])} for v in bbox]
-            minx = min(v[0] for v in bbox)
-            miny = min(v[1] for v in bbox)
-            maxx = max(v[0] for v in bbox)
-            maxy = max(v[1] for v in bbox)
+            minx = int(min(v[0] for v in bbox))
+            miny = int(min(v[1] for v in bbox))
+            maxx = int(max(v[0] for v in bbox))
+            maxy = int(max(v[1] for v in bbox))
             ridx.insert(bbid_counter, (minx, miny, maxx, maxy))
             finding = {
                 "text": text,
                 "confidence": round(float(prob), 4),
-                "bbox": verts
+                "bbox": (minx, miny, maxx, maxy)
             }
             out[bbid_counter] = finding
             bbid_counter += 1

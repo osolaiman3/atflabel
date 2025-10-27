@@ -15,7 +15,8 @@ try:
     from dotenv import load_dotenv
     load_dotenv('.env')
 except ImportError:
-    print("dotenv not installed, proceeding without loading .env file")
+    # Create logger early for this message
+    logging.warning("dotenv not installed, proceeding without loading .env file")
     pass  # Will use defaults if dotenv not available
 
 from ocr_checker import OCRChecker
